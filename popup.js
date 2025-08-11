@@ -1,4 +1,3 @@
-// Popup UI logic
 const enabledEl = document.getElementById('enabled');
 const delayEl = document.getElementById('delay');
 const patternsEl = document.getElementById('patterns');
@@ -25,11 +24,7 @@ function load() {
 
 document.getElementById('save').addEventListener('click', () => {
   const delay = Math.max(0, parseInt(delayEl.value, 10) || 0);
-  const custom = patternsEl.value
-    .split(/\r?\n/)
-    .map(s => s.trim())
-    .filter(Boolean);
-
+  const custom = patternsEl.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
   chrome.storage.sync.set({
     enabled: enabledEl.checked,
     delaySeconds: delay,
@@ -46,8 +41,27 @@ document.getElementById('reset').addEventListener('click', () => {
 });
 
 document.getElementById('test').addEventListener('click', async () => {
-  // Ping the background by writing then reading a no-op; real logic lives in background
-  setStatus("If this tab is a join page, it will close after your delay.");
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab) {
+    const delay = Math.max(0, parseInt(delayEl.value, 10) || DEFAULT_DELAY_SECONDS);
+    try {
+      // Inject the content script first
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content.js']
+      });
+      
+      // Then send the message
+      await chrome.tabs.sendMessage(tab.id, {
+        type: "mtc:start",
+        delaySeconds: delay
+      });
+      
+      setStatus("Test started!");
+    } catch (error) {
+      setStatus("Doesn't work on this page.");
+    }
+  }
 });
 
 load();

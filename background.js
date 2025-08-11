@@ -1,4 +1,4 @@
-// Meeting Tab Closer — background service worker
+// Meeting Tab Closer — background service worker (v1.1.0)
 
 const DEFAULT_DELAY_SECONDS = 3;
 const DEFAULT_PATTERNS = [
@@ -12,42 +12,33 @@ const DEFAULT_PATTERNS = [
 const state = {
   enabled: true,
   delaySeconds: DEFAULT_DELAY_SECONDS,
-  customPatterns: [],  // array of strings (wildcards allowed)
+  customPatterns: [],
 };
 
-// Convert a user string with wildcards or /regex/ to RegExp
+// Convert user wildcard or /regex/ string to RegExp
 function toRegex(patternStr) {
   const trimmed = patternStr.trim();
   if (!trimmed) return null;
-
-  // If formatted like /.../i or /.../, treat as regex literal
   if (trimmed.startsWith("/") && trimmed.lastIndexOf("/") > 0) {
     const lastSlash = trimmed.lastIndexOf("/");
     const expr = trimmed.slice(1, lastSlash);
     const flags = trimmed.slice(lastSlash + 1) || "i";
     try { return new RegExp(expr, flags); } catch(e) { return null; }
   }
-
-  // Otherwise treat as wildcard string: * means "anything"
   const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const wildcard = escaped.replace(/\\\*/g, ".*");
   return new RegExp("^" + wildcard + "$", "i");
 }
 
 function getAllRegexes() {
-  const custom = (state.customPatterns || [])
-    .map(toRegex)
-    .filter(Boolean);
+  const custom = (state.customPatterns || []).map(toRegex).filter(Boolean);
   return [...DEFAULT_PATTERNS, ...custom];
 }
 
 function matchesMeetingJoin(url) {
   try {
-    const regs = getAllRegexes();
-    return regs.some(rx => rx.test(url));
-  } catch (e) {
-    return false;
-  }
+    return getAllRegexes().some(rx => rx.test(url));
+  } catch { return false; }
 }
 
 // Load settings
@@ -62,8 +53,7 @@ function loadSettings() {
     state.customPatterns = Array.isArray(items.customPatterns) ? items.customPatterns : [];
   });
 }
-
-// Keep settings live when changed
+loadSettings();
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "sync") return;
   if (changes.enabled) state.enabled = Boolean(changes.enabled.newValue);
@@ -76,54 +66,49 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 
-loadSettings();
+// Track "canceled for this tab" across soft navigations
+const canceled = new Set();
 
-// Track timers per tab to avoid duplicate close actions
-const tabTimers = new Map();
-
-function scheduleClose(tabId, url) {
-  if (tabTimers.has(tabId)) clearTimeout(tabTimers.get(tabId));
-
-  const ms = (state.delaySeconds || 0) * 1000;
-  const timerId = setTimeout(async () => {
-    try {
-      const tab = await chrome.tabs.get(tabId);
-      if (!tab || !tab.url) return;
-      if (!state.enabled) return;
-      if (matchesMeetingJoin(tab.url)) {
-        await chrome.tabs.remove(tabId);
-      }
-    } catch (e) {
-      // tab may be gone already; ignore
-    } finally {
-      tabTimers.delete(tabId);
-    }
-  }, ms);
-
-  tabTimers.set(tabId, timerId);
-}
-
-function cancelScheduledClose(tabId) {
-  if (tabTimers.has(tabId)) {
-    clearTimeout(tabTimers.get(tabId));
-    tabTimers.delete(tabId);
-  }
-}
-
-// Listen for URL changes and page loads
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (!state.enabled) return;
-  const url = changeInfo.url || tab.url;
+  // Only act when the page is completely loaded
+  if (changeInfo.status !== "complete") return;
+
+  const url = tab.url;
   if (!url) return;
 
   if (matchesMeetingJoin(url)) {
-    scheduleClose(tabId, url);
+    if (!canceled.has(tabId)) {
+      try {
+        // Inject the content script first
+        await chrome.scripting.executeScript({
+          target: { tabId },
+          files: ['content.js']
+        });
+        
+        // Then send the message
+        await chrome.tabs.sendMessage(tabId, {
+          type: "mtc:start",
+          delaySeconds: state.delaySeconds
+        });
+      } catch (error) {
+        // Content script injection failed or tab doesn't allow it
+        console.log('Failed to inject content script:', error);
+      }
+    }
   } else {
-    cancelScheduledClose(tabId);
+    canceled.delete(tabId);
   }
 });
 
-// Clean up when a tab is closed
-chrome.tabs.onRemoved.addListener((tabId) => {
-  cancelScheduledClose(tabId);
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  const tabId = sender?.tab?.id;
+  if (!tabId) return;
+  if (msg.type === "mtc:cancel") {
+    canceled.add(tabId);
+    sendResponse({ ok: true });
+  }
+  if (msg.type === "mtc:closeMe") {
+    chrome.tabs.remove(tabId).catch(()=>{});
+  }
 });

@@ -1,34 +1,24 @@
 
-# Meeting Tab Closer (Edge/Chrome extension)
+# Meeting Tab Closer (Edge/Chrome) — v1.1.0
 
-Auto-closes Microsoft Teams and Zoom "join meeting" pages after a configurable delay.
+Adds an on-page countdown overlay (with Cancel) before auto-closing Teams & Zoom “join meeting” tabs.
 
 ## Files
-- `manifest.json` — MV3 manifest (minimal permissions: `tabs`, `storage`)
-- `background.js` — service worker that detects matching URLs and closes the tab after the delay
-- `popup.html`, `popup.js`, `styles.css` — lightweight UI to enable/disable, set delay, and add custom URL patterns
+- `manifest.json` — MV3 manifest
+- `background.js` — detects matches, coordinates countdown and closes tab
+- `content.js` — draws the overlay + cancel button using a Shadow DOM
+- `popup.html`, `popup.js`, `styles.css` — settings UI
+- `icons/` — minimal placeholders
 
-## Default detection
-- `https://teams.microsoft.com/l/meetup-join*`
-- `https://teams.live.com/meet*`
-- `https://*.zoom.us/wc/*`
-- `https://join.zoom.us/*`
-- `https://*.zoom.us/j/*`
+## Permissions
+- `"tabs"`, `"storage"`
+- `host_permissions` for Zoom & Teams pages
 
-You can add your own URLs using wildcards (`*`) or raw regexes (wrap in `/slashes/`).
+## Side-load
+1. Download and extract `meeting-tab-closer-overlay.zip`.
+2. Open `edge://extensions`, enable **Developer mode**.
+3. Click **Load unpacked** and select the folder.
 
-## Build & install (side-load)
-1. Download and extract `meeting-tab-closer.zip`.
-2. In Edge, open `edge://extensions`.
-3. Toggle **Developer mode** (upper-left).
-4. Click **Load unpacked** and select the extracted folder.
-5. The extension's puzzle-piece icon appears; click it to open settings.
-
-## Share with co‑workers
-- **Quick/shareable**: Send the folder or ZIP; co‑workers can also use **Load unpacked**.
-- **Private/org listing (recommended)**: Create a Microsoft Partner Center account and submit to the **Microsoft Edge Add-ons** store. Choose visibility as **Private (organization only)** or **Unlisted** so only people with the link or within your org can install.
-- **Enterprise managed**: IT can deploy via group policy (ExtensionInstallForcelist) after publishing to the store.
-
-## Notes
-- The extension waits the number of seconds you set, then re-checks the tab's URL before closing (so it won't close a tab that navigated away).
-- All settings sync via your browser profile (using `chrome.storage.sync`).
+## Share with co-workers
+- Submit to **Microsoft Edge Add-ons** (Partner Center) as **Private (organization only)** or **Unlisted**.
+- Enterprises can deploy via policy after store publication.

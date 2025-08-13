@@ -69,6 +69,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
 // Track "canceled for this tab" across soft navigations
 const canceled = new Set();
 
+// Clean up canceled set when tabs are closed to prevent memory growth
+chrome.tabs.onRemoved.addListener((tabId) => {
+  canceled.delete(tabId);
+});
+
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (!state.enabled) return;
   // Only act when the page is completely loaded

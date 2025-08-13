@@ -5,6 +5,7 @@
   window.mtcInjected = true;
 
   let overlayRoot, intervalId, secondsLeft, running = false;
+  let messageListener; // Store listener reference for cleanup
 
   function ensureUI() {
     if (overlayRoot) return overlayRoot;
@@ -53,6 +54,7 @@
   }
 
   function destroy() {
+    stop(); // Ensure interval is cleared first
     if (overlayRoot?.host?.isConnected) overlayRoot.host.remove();
     overlayRoot = null;
   }
@@ -82,11 +84,28 @@
 
   function stop() {
     running = false;
-    if (intervalId) clearInterval(intervalId);
-    intervalId = null;
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
   }
 
-  chrome.runtime.onMessage.addListener((msg) => {
+  function cleanup() {
+    stop();
+    destroy();
+    if (messageListener) {
+      chrome.runtime.onMessage.removeListener(messageListener);
+      messageListener = null;
+    }
+  }
+
+  // Store listener reference for cleanup
+  messageListener = (msg) => {
     if (msg?.type === 'mtc:start') start(msg.delaySeconds);
-  });
+  };
+  chrome.runtime.onMessage.addListener(messageListener);
+
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', cleanup);
+  window.addEventListener('pagehide', cleanup);
 })();

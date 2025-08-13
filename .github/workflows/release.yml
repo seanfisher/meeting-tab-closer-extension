@@ -1,0 +1,87 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.1.0)'
+        required: true
+        default: 'v1.1.0'
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Get version from manifest
+      id: get_version
+      run: |
+        VERSION=$(grep '"version"' manifest.json | sed 's/.*"version": "\(.*\)".*/\1/')
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+    
+    - name: Use input version if provided
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        echo "tag=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+    
+    - name: Use manifest version for tag pushes
+      if: github.event_name == 'push'
+      run: |
+        echo "tag=${{ steps.get_version.outputs.tag }}" >> $GITHUB_ENV
+    
+    - name: Create extension zip
+      run: |
+        # Create a temporary directory for the extension files
+        mkdir -p extension-build
+        
+        # Copy all necessary files to the build directory
+        cp manifest.json extension-build/
+        cp background.js extension-build/
+        cp content.js extension-build/
+        cp popup.html extension-build/
+        cp popup.js extension-build/
+        cp styles.css extension-build/
+        cp -r icons extension-build/
+        
+        # Create the zip file
+        cd extension-build
+        zip -r ../meeting-tab-closer-${{ env.tag }}.zip .
+        cd ..
+        
+        # Also create a generic named version for easy linking
+        cp meeting-tab-closer-${{ env.tag }}.zip meeting-tab-closer.zip
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ env.tag }}
+        name: Meeting Tab Closer ${{ env.tag }}
+        body: |
+          ## Meeting Tab Closer ${{ env.tag }}
+          
+          Chrome/Edge extension that auto-closes Teams & Zoom "join meeting" tabs after a configurable timeout.
+          
+          ### Installation
+          1. Download `meeting-tab-closer-${{ env.tag }}.zip` below
+          2. Extract the zip file
+          3. Open `chrome://extensions` or `edge://extensions`
+          4. Enable "Developer mode"
+          5. Click "Load unpacked" and select the extracted folder
+          
+          ### Changes
+          See the commit history for detailed changes in this release.
+        files: |
+          meeting-tab-closer-${{ env.tag }}.zip
+          meeting-tab-closer.zip
+        draft: false
+        prerelease: false

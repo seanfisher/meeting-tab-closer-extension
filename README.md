@@ -38,3 +38,24 @@ New releases are automatically built and published when tags are pushed to the r
 - **[Latest Release](https://github.com/seanfisher/meeting-tab-closer-extension/releases/latest)** - Download the most recent version
 - **[All Releases](https://github.com/seanfisher/meeting-tab-closer-extension/releases)** - View release history and download specific versions
 
+### Creating a New Release
+
+**Option 1: Use the Release Script (Recommended)**
+```bash
+./release.sh 1.2.0
+```
+This automatically updates version numbers, commits changes, creates a git tag, and triggers the release workflow.
+
+**Option 2: Manual Release via GitHub Actions**
+1. Go to the GitHub repository → Actions tab
+2. Select "Create Release" workflow  
+3. Click "Run workflow"
+4. Enter the version (e.g., `v1.2.0`)
+
+**Option 3: Tag-based Release**
+```bash
+git tag v1.2.0
+git push origin v1.2.0
+```
+The GitHub Action will automatically detect the new tag and create a release.
+

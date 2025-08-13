@@ -1,0 +1,43 @@
+{
+  "manifest_version": 2,
+  "name": "Meeting Tab Closer",
+  "version": "1.1.0",
+  "description": "Auto-closes Microsoft Teams & Zoom \"join meeting\" tabs after a delay, with on-page cancelable countdown overlay.",
+  "permissions": [
+    "tabs",
+    "storage",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background-firefox.js"],
+    "persistent": false
+  },
+  "browser_action": {
+    "default_title": "Meeting Tab Closer",
+    "default_popup": "popup.html"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.zoom.us/*",
+        "*://join.zoom.us/*",
+        "*://teams.microsoft.com/*",
+        "*://teams.live.com/*"
+      ],
+      "js": ["content-firefox.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "applications": {
+    "gecko": {
+      "id": "meeting-tab-closer@seanfisher.dev",
+      "strict_min_version": "57.0"
+    }
+  }
+}

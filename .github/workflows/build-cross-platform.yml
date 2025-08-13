@@ -1,0 +1,100 @@
+name: Build Cross-Platform Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.2.0)'
+        required: true
+        default: 'v1.1.0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install jq
+      run: sudo apt-get update && sudo apt-get install -y jq
+      
+    - name: Build extensions
+      run: |
+        chmod +x build.sh
+        ./build.sh
+        
+    - name: Get version
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          VERSION="${{ github.event.inputs.version }}"
+        else
+          VERSION="${{ github.ref_name }}"
+        fi
+        # Remove 'v' prefix if present
+        VERSION=${VERSION#v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "tag=${VERSION}" >> $GITHUB_OUTPUT
+        
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ steps.version.outputs.version }}
+        release_name: Meeting Tab Closer v${{ steps.version.outputs.version }}
+        body: |
+          Cross-platform release of Meeting Tab Closer v${{ steps.version.outputs.version }}
+          
+          ## Downloads
+          - **Chrome/Edge/Chromium**: meeting-tab-closer-chrome-${{ steps.version.outputs.version }}.zip
+          - **Firefox**: meeting-tab-closer-firefox-${{ steps.version.outputs.version }}.zip
+          
+          ## Installation Instructions
+          
+          ### Chrome/Edge/Chromium
+          1. Download the Chrome zip file
+          2. Extract to a folder
+          3. Open chrome://extensions/
+          4. Enable Developer mode
+          5. Click "Load unpacked" and select the folder
+          
+          ### Firefox
+          1. Download the Firefox zip file
+          2. Extract to a folder
+          3. Open about:debugging
+          4. Click "This Firefox"
+          5. Click "Load Temporary Add-on"
+          6. Select the manifest.json file
+        draft: false
+        prerelease: false
+        
+    - name: Upload Chrome Extension
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./build/meeting-tab-closer-chrome-${{ steps.version.outputs.version }}.zip
+        asset_name: meeting-tab-closer-chrome-${{ steps.version.outputs.version }}.zip
+        asset_content_type: application/zip
+        
+    - name: Upload Firefox Extension
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./build/meeting-tab-closer-firefox-${{ steps.version.outputs.version }}.zip
+        asset_name: meeting-tab-closer-firefox-${{ steps.version.outputs.version }}.zip
+        asset_content_type: application/zip
